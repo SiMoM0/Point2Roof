@@ -10,7 +10,7 @@ def train_one_epoch(model, optim, data_loader, accumulated_iter,
                     tbar, leave_pbar=False):
     total_it_each_epoch = len(data_loader)
     dataloader_iter = iter(data_loader)
-    pbar = tqdm.tqdm(total=total_it_each_epoch, leave=leave_pbar, desc='train', dynamic_ncols=True)
+    #pbar = tqdm.tqdm(total=total_it_each_epoch, leave=leave_pbar, desc='train', dynamic_ncols=True)
 
     for cur_it in range(total_it_each_epoch):
         try:
@@ -48,42 +48,71 @@ def train_one_epoch(model, optim, data_loader, accumulated_iter,
 
         # log to console and tensorboard
 
-        pbar.update()
-        pbar.set_postfix(dict(total_it=accumulated_iter))
-        tbar.set_postfix(disp_dict)
-        tbar.refresh()
+        # pbar.update()
+        # pbar.set_postfix(dict(total_it=accumulated_iter))
+        # tbar.set_postfix(disp_dict)
+        # tbar.refresh()
 
-    pbar.close()
+    # print info at the end of each epoch
+    print('Epoch %d' % (accumulated_iter // total_it_each_epoch), end=' ')
+    for key, val in disp_dict.items():
+        print(' | %s: %.4f |' % (key, val), end=' ')
+    print('')
+
+    # pbar.close()
     return accumulated_iter
 
 
 def train_model(model, optim, data_loader, lr_sch, start_it, start_epoch, total_epochs, ckpt_save_dir, sampler=None,
                 max_ckpt_save_num=5):
 
-    with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) as tbar:
-        accumulated_iter = start_it
-        for e in tbar:
-            if sampler is not None:
-                sampler.set_epoch(e)
-            if e > 5:
-                model.use_edge = True
-            accumulated_iter = train_one_epoch(model, optim, data_loader, accumulated_iter, tbar,
-                                               leave_pbar=(e + 1 == total_epochs))
-            lr_sch.step()
-            lr = max(optim.param_groups[0]['lr'], 1e-6)
-            for param_group in optim.param_groups:
-                param_group['lr'] = lr
+    # with tqdm.trange(start_epoch, total_epochs, desc='epochs', dynamic_ncols=True) as tbar:
+    #     accumulated_iter = start_it
+    #     for e in tbar:
+    #         if sampler is not None:
+    #             sampler.set_epoch(e)
+    #         if e > 5:
+    #             model.use_edge = True
+    #         accumulated_iter = train_one_epoch(model, optim, data_loader, accumulated_iter, tbar,
+    #                                            leave_pbar=(e + 1 == total_epochs))
+    #         lr_sch.step()
+    #         lr = max(optim.param_groups[0]['lr'], 1e-6)
+    #         for param_group in optim.param_groups:
+    #             param_group['lr'] = lr
 
-            ckpt_list = glob.glob(str(ckpt_save_dir / 'checkpoint_epoch_*.pth'))
-            ckpt_list.sort(key=os.path.getmtime)
-            if ckpt_list.__len__() >= max_ckpt_save_num:
-                for cur_file_idx in range(0, len(ckpt_list) - max_ckpt_save_num + 1):
-                    os.remove(ckpt_list[cur_file_idx])
+    #         ckpt_list = glob.glob(str(ckpt_save_dir / 'checkpoint_epoch_*.pth'))
+    #         ckpt_list.sort(key=os.path.getmtime)
+    #         if ckpt_list.__len__() >= max_ckpt_save_num:
+    #             for cur_file_idx in range(0, len(ckpt_list) - max_ckpt_save_num + 1):
+    #                 os.remove(ckpt_list[cur_file_idx])
 
-            ckpt_name = ckpt_save_dir / ('checkpoint_epoch_%d' % (e + 1))
-            save_checkpoint(
-                checkpoint_state(model, optim, e + 1, accumulated_iter), filename=ckpt_name,
-            )
+    #         ckpt_name = ckpt_save_dir / ('checkpoint_epoch_%d' % (e + 1))
+    #         save_checkpoint(
+    #             checkpoint_state(model, optim, e + 1, accumulated_iter), filename=ckpt_name,
+    #         )
+
+    accumulated_iter = start_it
+    for e in range(start_epoch, total_epochs):
+        if sampler is not None:
+            sampler.set_epoch(e)
+        if e > 5:
+            model.use_edge = True
+        accumulated_iter = train_one_epoch(model, optim, data_loader, accumulated_iter, None)
+        lr_sch.step()
+        lr = max(optim.param_groups[0]['lr'], 1e-6)
+        for param_group in optim.param_groups:
+            param_group['lr'] = lr
+
+        ckpt_list = glob.glob(str(ckpt_save_dir / 'checkpoint_epoch_*.pth'))
+        ckpt_list.sort(key=os.path.getmtime)
+        if ckpt_list.__len__() >= max_ckpt_save_num:
+            for cur_file_idx in range(0, len(ckpt_list) - max_ckpt_save_num + 1):
+                os.remove(ckpt_list[cur_file_idx])
+
+        ckpt_name = ckpt_save_dir / ('checkpoint_epoch_%d' % (e + 1))
+        save_checkpoint(
+            checkpoint_state(model, optim, e + 1, accumulated_iter), filename=ckpt_name,
+        )
 
 
 
