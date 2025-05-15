@@ -85,7 +85,6 @@ class EdgeAttentionNet(nn.Module):
         edge_pred = self.cls_fc(self.drop(self.shared_fc(edge_fea)))
         batch_dict['pair_points'] = torch.cat(pair_idx_list, 0)
         batch_dict['edge_score'] = torch.sigmoid(edge_pred).view(-1)
-        print('[AAA]',  batch_dict['pair_points'].shape, batch_dict['edge_score'].shape)
         if self.training:
             self.train_dict['edge_pred'] = edge_pred
         return batch_dict
