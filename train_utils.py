@@ -20,6 +20,16 @@ def train_one_epoch(model, optim, data_loader, accumulated_iter,
             batch = next(dataloader_iter)
             print('new iters')
 
+        # print(batch.keys())
+        # for key in batch.keys():
+        #     try:
+        #         print(key, batch[key].shape)
+        #         print(batch[key][0, :5])
+        #     except:
+        #         print(key, type(batch[key]), batch[key])
+
+        # exit(0)
+
         try:
             cur_lr = float(optim.lr)
         except:
@@ -112,6 +122,11 @@ def save_checkpoint(state, filename='checkpoint'):
 
 def load_data_to_gpu(batch_dict):
     for key, val in batch_dict.items():
-        if not isinstance(val, np.ndarray):
+        # new code for Building3D
+        if not isinstance(val, torch.Tensor):
             continue
-        batch_dict[key] = torch.from_numpy(val).float().cuda()
+        batch_dict[key] = val.cuda(non_blocking=True)
+        # old code for synthetic dataset
+        # if not isinstance(val, np.ndarray):
+        #     continue
+        # batch_dict[key] = torch.from_numpy(val).float().cuda()

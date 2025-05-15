@@ -1,6 +1,6 @@
 #include <torch/serialize/tensor.h>
 #include <vector>
-#include <THC/THC.h>
+// #include <THC/THC.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +8,7 @@
 #include <cuda_runtime_api.h>
 #include "interpolate_gpu.h"
 
-extern THCState *state;
+// extern THCState *state;
 
 
 

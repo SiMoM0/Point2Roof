@@ -46,7 +46,7 @@ def test_model(model, data_loader, logger):
     dataloader_iter = iter(data_loader)
     with tqdm.trange(0, len(data_loader), desc='test', dynamic_ncols=True) as tbar:
         model.use_edge = True
-        statistics = {'tp_pts': 0, 'num_label_pts': 0, 'num_pred_pts': 0, 'pts_bias': np.zeros(3, np.float),
+        statistics = {'tp_pts': 0, 'num_label_pts': 0, 'num_pred_pts': 0, 'pts_bias': np.zeros(3, np.float32),
                       'tp_edges': 0, 'num_label_edges': 0, 'num_pred_edges': 0}
         for cur_it in tbar:
             batch = next(dataloader_iter)
@@ -54,6 +54,14 @@ def test_model(model, data_loader, logger):
             with torch.no_grad():
                 batch = model(batch)
                 load_data_to_cpu(batch)
+            # print(batch.keys())
+            # print('GT VERTICES', batch['vectors'].shape, batch['vectors'])
+            # print('GT EDGES', batch['edges'].shape, batch['edges'])
+            # print(batch['keypoint'].shape, batch['refined_keypoint'].shape)
+            # print(batch['keypoint'])
+            # print(batch['refined_keypoint'])
+            # print(batch['pair_points'].shape)
+            # print(batch['pair_points'])
             eval_process(batch, statistics)
         bias = statistics['pts_bias'] / statistics['tp_pts']
         logger.info('pts_recall: %f' % (statistics['tp_pts'] / statistics['num_label_pts']))
@@ -69,8 +77,14 @@ def eval_process(batch, statistics):
     mm_pts = batch['minMaxPt']
     id = batch['frame_id']
 
+    print(pts_pred.shape, pts_refined.shape, pts_label.shape) # (pred_p, 4), (pred_p, 3), (B, num_p, 3)
+    print(edge_pred.shape, edge_label.shape) # (pred_e, ), (B, num_e, 2)
+    # print(pts_pred, pts_refined, pts_label)
+
     idx = 0
     for i in range(batch_size):
+        # print(f'GT VERTICES {pts_label.shape[0]} vs PREDICTED {pts_pred.shape[0]}')
+        # print(f'GT EDGES {edge_label.shape[0]} vs PREDICTED {edge_pred.shape[0]}')
         mm_pt = mm_pts[i]
         minPt = mm_pt[0]
         maxPt = mm_pt[1]
@@ -108,12 +122,27 @@ def eval_process(batch, statistics):
         statistics['num_label_edges'] += len(l_edge)
         statistics['num_pred_edges'] += match_edge.shape[0]
 
+        # print(len(l_edge), l_edge)
+        # print(match_edge.shape, match_edge)
+
+        # TODO: save points and edges in a .obj file
+        # output_dir = os.path.join('./outputs/', 'wireframe')
+        # if not os.path.exists(output_dir):
+        #     os.makedirs(output_dir)
+        # writePoints(p_pts, os.path.join(output_dir, '' + str(id[i].item()) + '.obj'))
+        # writeEdges(match_edge, os.path.join(output_dir, '' + str(id[i].item()) + '.edges.obj'))
+
 
 def load_data_to_gpu(batch_dict):
     for key, val in batch_dict.items():
-        if not isinstance(val, np.ndarray):
+        # new code for Building3D
+        if not isinstance(val, torch.Tensor):
             continue
-        batch_dict[key] = torch.from_numpy(val).float().cuda()
+        batch_dict[key] = val.cuda(non_blocking=True)
+        # old code for synthetic dataset
+        # if not isinstance(val, np.ndarray):
+            # continue
+        # batch_dict[key] = torch.from_numpy(val).float().cuda()
 
 
 def load_data_to_cpu(batch_dict):

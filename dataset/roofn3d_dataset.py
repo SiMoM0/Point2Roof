@@ -20,7 +20,7 @@ def load_obj(obj_file):
         if vals[0] == 'v':
             vs.append(vals[1:])
         else:
-            obj_data = np.array(vals[1:], dtype=np.int).reshape(-1, 1) - 1
+            obj_data = np.array(vals[1:], dtype=np.int64).reshape(-1, 1) - 1
             idx = np.arange(len(obj_data)) - 1
             cur_edge = np.concatenate([obj_data, obj_data[idx]], -1)
             [edges.add(tuple(sorted(e))) for e in cur_edge]

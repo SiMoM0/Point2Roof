@@ -2,10 +2,10 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <vector>
-#include <THC/THC.h>
+// #include <THC/THC.h>
 #include "group_points_gpu.h"
 
-extern THCState *state;
+// extern THCState *state;
 
 
 #define CHECK_CUDA(x) do { \

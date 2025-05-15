@@ -1,9 +1,11 @@
 import os
+import yaml
 import torch
 import torch.nn as nn
 import argparse
 import datetime
 import glob
+from easydict import EasyDict
 import torch.distributed as dist
 from dataset.data_utils import build_dataloader
 from test_util import test_model
@@ -11,6 +13,20 @@ from model.roofnet import RoofNet
 from torch import optim
 from utils import common_utils
 from model import model_utils
+
+# Building3D
+from Building3D.datasets import build_dataset
+CONFIG_PATH = './Building3D/datasets/dataset_config.yaml'
+
+def cfg_from_yaml_file(cfg_file):
+    with open(cfg_file, 'r') as f:
+        try:
+            new_config = yaml.load(f, Loader=yaml.FullLoader)
+        except:
+            new_config = yaml.load(f)
+
+    cfg = EasyDict(new_config)
+    return cfg
 
 
 def parse_config():
@@ -33,7 +49,7 @@ def main():
     extra_tag = args.test_tag
     output_dir = cfg.ROOT_DIR / 'output' / extra_tag
     assert output_dir.exists(), '%s does not exist!!!' % str(output_dir)
-    ckpt_dir = output_dir #/ 'ckpt'
+    ckpt_dir = output_dir / 'ckpt'
     output_dir = output_dir / 'test'
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -45,7 +61,19 @@ def main():
         logger.info('{:16} {}'.format(key, val))
     common_utils.log_config_to_file(cfg, logger=logger)
 
-    test_loader = build_dataloader(args.data_path, args.batch_size, cfg.DATA, training=False, logger=logger)
+    # test_loader = build_dataloader(args.data_path, args.batch_size, cfg.DATA, training=False, logger=logger)
+    # Building3D dataset
+    dataset_config = cfg_from_yaml_file(CONFIG_PATH)
+    dataset_config['Building3D']['root_dir'] = args.data_path
+    building3D_dataset = build_dataset(dataset_config.Building3D)
+    test_loader = torch.utils.data.DataLoader(
+        building3D_dataset['train'], # TODO: change to test
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=4,
+        collate_fn=building3D_dataset['train'].collate_batch # TODO: change to test
+    )
+    
     net = RoofNet(cfg.MODEL)
     net.cuda()
     net.eval()
