@@ -14,6 +14,8 @@ python train.py --data_path ../B3D_challenge/Building3D_entry_level/Entry-level/
 TEST:
 python test.py --data_path ~/Downloads/tokyo --batch_size 128 --gpu 0 --test_tag baseline --split test
 
+For tokyo dataset, change line in `test_util.py` file
+
 ## Synthetic and real dataset
 
 To train and test DeepRoof, we construct a new dataset of roof building 3D reconstruction. To further evaluate the performance of the proposed Point2Roof, we also construct a small real dataset. 
