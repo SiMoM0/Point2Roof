@@ -121,8 +121,9 @@ class Building3DReconstructionDataset(Dataset):
 
         # ------------------------------- Wireframe ------------------------------
         # load wireframe
-        wireframe_file = self.wireframe_files[index]
-        wf_vertices, wf_edges = load_wireframe(wireframe_file)
+        if self.split_set == "train":
+            wireframe_file = self.wireframe_files[index]
+            wf_vertices, wf_edges = load_wireframe(wireframe_file)
 
         # ------------------------------- Dataset Preprocessing ------------------------------
         if self.normalize:
@@ -131,8 +132,9 @@ class Building3DReconstructionDataset(Dataset):
             max_distance = np.max(np.linalg.norm(point_cloud[:, 0:3], axis=1))
             point_cloud[:, 0:3] /= max_distance
 
-            wf_vertices -= centroid
-            wf_vertices /= max_distance
+            if self.split_set == "train":
+                wf_vertices -= centroid
+                wf_vertices /= max_distance
 
         if self.num_points:
             point_cloud = random_sampling(point_cloud, self.num_points)
@@ -185,18 +187,20 @@ class Building3DReconstructionDataset(Dataset):
         pt = np.concatenate(( np.expand_dims(min_pt, 0),  np.expand_dims(max_pt, 0)), axis = 0)
 
         # -------------------------------Edge Vertices ------------------------
-        wf_edges_vertices = np.stack((wf_vertices[wf_edges[:, 0]], wf_vertices[wf_edges[:, 1]]), axis=1)
-        wf_edges_vertices = wf_edges_vertices[
-            np.arange(wf_edges_vertices.shape[0])[:, np.newaxis], np.flip(np.argsort(wf_edges_vertices[:, :, -1]),
-                                                                        axis=1)]
-        wf_centers = (wf_edges_vertices[..., 0, :] + wf_edges_vertices[..., 1, :]) / 2
-        wf_edge_number = wf_edges.shape[0]
+        if self.split_set == "train":
+            wf_edges_vertices = np.stack((wf_vertices[wf_edges[:, 0]], wf_vertices[wf_edges[:, 1]]), axis=1)
+            wf_edges_vertices = wf_edges_vertices[
+                np.arange(wf_edges_vertices.shape[0])[:, np.newaxis], np.flip(np.argsort(wf_edges_vertices[:, :, -1]),
+                                                                            axis=1)]
+            wf_centers = (wf_edges_vertices[..., 0, :] + wf_edges_vertices[..., 1, :]) / 2
+            wf_edge_number = wf_edges.shape[0]
 
         # ------------------------------- Return Dict ------------------------------
         ret_dict = {}
         ret_dict['points'] = point_cloud.astype(np.float32)
-        ret_dict['vectors'] = wf_vertices.astype(np.float32)
-        ret_dict['edges'] = wf_edges.astype(np.int64)
+        if self.split_set == "train":
+            ret_dict['vectors'] = wf_vertices.astype(np.float32)
+            ret_dict['edges'] = wf_edges.astype(np.int64)
         # ret_dict['wf_centers'] = wf_centers.astype(np.float32)
         # ret_dict['wf_edge_number'] = wf_edge_number
         # ret_dict['wf_edges_vertices'] = wf_edges_vertices.reshape((-1, 6)).astype(np.float32)
@@ -207,7 +211,8 @@ class Building3DReconstructionDataset(Dataset):
         if self.normalize:
             ret_dict['centroid'] = centroid
             ret_dict['max_distance'] = max_distance
-        ret_dict['frame_id'] = np.array(os.path.splitext(os.path.basename(pc_file))[0]).astype(np.int64)
+        idx = os.path.splitext(os.path.basename(pc_file))[0].split('_')[-1]
+        ret_dict['frame_id'] = np.array(idx).astype(np.int64)
         return ret_dict
 
     @staticmethod

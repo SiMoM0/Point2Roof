@@ -36,6 +36,7 @@ def parse_config():
     parser.add_argument('--batch_size', type=int, default=1, help='batch size for training')
     parser.add_argument('--gpu', type=str, default='1', help='gpu for training')
     parser.add_argument('--test_tag', type=str, default='pts6', help='extra tag for this experiment')
+    parser.add_argument('--split', type=str, default='train', help='train or test split')
 
     args = parser.parse_args()
     cfg = common_utils.cfg_from_yaml_file(args.cfg_file)
@@ -63,16 +64,19 @@ def main():
 
     # test_loader = build_dataloader(args.data_path, args.batch_size, cfg.DATA, training=False, logger=logger)
     # Building3D dataset
+    SPLIT = args.split
     dataset_config = cfg_from_yaml_file(CONFIG_PATH)
     dataset_config['Building3D']['root_dir'] = args.data_path
+    dataset_config['Building3D']['augment'] = False
     building3D_dataset = build_dataset(dataset_config.Building3D)
     test_loader = torch.utils.data.DataLoader(
-        building3D_dataset['train'], # TODO: change to test
+        building3D_dataset[SPLIT], # TODO: change to test
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=4,
-        collate_fn=building3D_dataset['train'].collate_batch # TODO: change to test
+        collate_fn=building3D_dataset[SPLIT].collate_batch # TODO: change to test
     )
+    print('Dataset size: ', len(test_loader.dataset))
     
     net = RoofNet(cfg.MODEL)
     net.cuda()
@@ -86,7 +90,7 @@ def main():
     logger.info('**********************Start testing**********************')
     logger.info(net)
 
-    test_model(net, test_loader, logger)
+    test_model(net, test_loader, logger, SPLIT)
 
 
 if __name__ == '__main__':

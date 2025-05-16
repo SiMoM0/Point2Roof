@@ -6,6 +6,14 @@ This is the PyToch implementation of the following manuscript:
 >
 This manuscript has been accepted by ISPRS Journal.
 
+## NEW USAGE
+
+TRAIN:
+python train.py --data_path ../B3D_challenge/Building3D_entry_level/Entry-level/ --batch_size 32 --gpu 0 --extra_tag b3d
+
+TEST:
+python test.py --data_path ~/Downloads/tokyo --batch_size 128 --gpu 0 --test_tag baseline --split test
+
 ## Synthetic and real dataset
 
 To train and test DeepRoof, we construct a new dataset of roof building 3D reconstruction. To further evaluate the performance of the proposed Point2Roof, we also construct a small real dataset. 

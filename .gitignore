@@ -6,6 +6,9 @@ __pycache__/*
 env/
 output/*
 results/*
+predictions/*
+predictions*
+submission_test*
 
 pc_util/build/*
 pc_util/dist/*

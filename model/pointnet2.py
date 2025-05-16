@@ -49,8 +49,8 @@ class PointNet2(nn.Module):
 
     def forward(self, batch_dict):
         xyz = batch_dict['points']
-        vectors = batch_dict['vectors']
         if self.training:
+            vectors = batch_dict['vectors']
             offset, cls = self.assign_targets(xyz, vectors, self.model_cfg.PosRadius)
             self.train_dict.update({
                 'offset_label': offset,
