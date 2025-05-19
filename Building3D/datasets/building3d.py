@@ -140,8 +140,8 @@ class Building3DReconstructionDataset(Dataset):
             point_cloud = random_sampling(point_cloud, self.num_points)
 
         # neighbor search
-        kdtree = KDTree(point_cloud[:, 0:3])
-        _, neighbors_emb = kdtree.query(point_cloud[:, 0:3], k=NUM_NEIGHBORS)
+        # kdtree = KDTree(point_cloud[:, 0:3])
+        # _, neighbors_emb = kdtree.query(point_cloud[:, 0:3], k=NUM_NEIGHBORS)
 
         # class labels generation
         # _, cand_vertices = kdtree.query(wf_vertices[:, 0:3], k=NUM_CANDIDATES)
@@ -204,7 +204,7 @@ class Building3DReconstructionDataset(Dataset):
         # ret_dict['wf_centers'] = wf_centers.astype(np.float32)
         # ret_dict['wf_edge_number'] = wf_edge_number
         # ret_dict['wf_edges_vertices'] = wf_edges_vertices.reshape((-1, 6)).astype(np.float32)
-        ret_dict['neighbors_emb'] = neighbors_emb.astype(np.int64)
+        # ret_dict['neighbors_emb'] = neighbors_emb.astype(np.int64)
         # ret_dict['class_label'] = class_labels.astype(np.int64)
         # ret_dict['offset'] = offsets.astype(np.float32)
         ret_dict['minMaxPt'] = pt.astype(np.float32)
