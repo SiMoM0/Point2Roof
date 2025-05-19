@@ -1,4 +1,5 @@
 from .pointnet2 import PointNet2
+from .point_transformer import PointTransformer
 from .cluster_refine import ClusterRefineNet
 from .edge_pred_net import EdgeAttentionNet
 import torch.nn as nn
@@ -10,7 +11,8 @@ class RoofNet(nn.Module):
         super().__init__()
         self.use_edge = False
         self.model_cfg = model_cfg
-        self.keypoint_det_net = PointNet2(model_cfg.PointNet2, input_channel)
+        # self.keypoint_det_net = PointNet2(model_cfg.PointNet2, input_channel)
+        self.keypoint_det_net = PointTransformer(model_cfg.PointNet2, input_channel)
         self.cluster_refine_net = ClusterRefineNet(model_cfg.ClusterRefineNet, input_channel=self.keypoint_det_net.num_output_feature)
         self.edge_att_net = EdgeAttentionNet(model_cfg.EdgeAttentionNet, input_channel=self.cluster_refine_net.num_output_feature)
 

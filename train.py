@@ -84,6 +84,9 @@ def main():
     net.cuda()
     optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-3)
 
+    nb_param = sum([p.numel() for p in net.parameters()]) / 1e6
+    print(f"Model: {nb_param} x 10^6 trainable parameters ")
+
     start_epoch = it = 0
     last_epoch = -1
     ckpt_list = glob.glob(str(ckpt_dir / '*checkpoint_epoch_*.pth'))
