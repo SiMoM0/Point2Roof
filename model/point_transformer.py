@@ -226,7 +226,7 @@ class PointTransformer(nn.Module):
                 'cls_pred': pred_cls,
                 'offset_pred': pred_offset
             })
-        batch_dict['point_features'] = l0_fea.permute(0, 2, 1)
+        batch_dict['point_features'] = p_feat.permute(0, 2, 1)
         batch_dict['point_pred_score'] = torch.sigmoid(pred_cls).squeeze(-1)
         batch_dict['point_pred_offset'] = pred_offset * self.model_cfg.PosRadius
         return batch_dict
