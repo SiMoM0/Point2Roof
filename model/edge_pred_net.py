@@ -8,6 +8,8 @@ from scipy.optimize import linear_sum_assignment
 from utils import loss_utils
 import pc_util
 import itertools
+import math
+from timm.models.layers import trunc_normal_
 
 
 class EdgeAttentionNet(nn.Module):
@@ -16,7 +18,8 @@ class EdgeAttentionNet(nn.Module):
         self.model_cfg = model_cfg
         self.freeze = False
 
-        self.att_layer = PairedPointAttention(input_channel)
+        #self.att_layer = PairedPointAttention(input_channel)
+        self.att_layer = Attention(input_channel, num_heads=4)
         num_feature = self.att_layer.num_output_feature
         self.shared_fc = LinearBN(num_feature, num_feature)
         self.drop = nn.Dropout(0.5)
@@ -143,17 +146,80 @@ class PairedPointAttention(nn.Module):
 
         self.num_output_feature = input_channel
 
-    def forward(self, point_fea1, point_fea2):
+    def forward(self, point_fea1, point_fea2): # (M, 256), (M, 256)
         fusion_fea = point_fea1 + point_fea2
         att1 = self.edge_att1(fusion_fea)
         att2 = self.edge_att2(fusion_fea)
         att_fea1 = point_fea1 * att1
         att_fea2 = point_fea2 * att2
         fea = torch.cat([att_fea1.unsqueeze(1), att_fea2.unsqueeze(1)], 1)
-        fea = self.fea_fusion_layer(fea.permute(0, 2, 1)).squeeze(-1)
+        fea = self.fea_fusion_layer(fea.permute(0, 2, 1)).squeeze(-1) # (M, 256)
         return fea
 
+class Attention(nn.Module):
+    def __init__(self, dim, num_heads=4, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0., sr_ratio=1):
+        super().__init__()
+        assert dim % num_heads == 0, f"dim {dim} should be divided by num_heads {num_heads}."
+        self.num_output_feature = dim
 
+        self.dim = dim
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = qk_scale or head_dim ** -0.5
+
+        self.q = nn.Linear(dim, dim, bias=qkv_bias)
+        self.kv = nn.Linear(dim, dim * 2, bias=qkv_bias)
+        self.attn_drop = nn.Dropout(attn_drop)
+        self.proj = nn.Linear(dim, dim, bias=False)
+        self.proj_drop = nn.Dropout(proj_drop)
+
+        self.sr_ratio = sr_ratio
+        if sr_ratio > 1:
+            self.sr = nn.Conv2d(dim, dim, kernel_size=sr_ratio, stride=sr_ratio)
+            self.norm = nn.LayerNorm(dim)
+
+        self.apply(self._init_weights)
+
+    def _init_weights(self, m):
+        if isinstance(m, nn.Linear):
+            trunc_normal_(m.weight, std=.02)
+            if isinstance(m, nn.Linear) and m.bias is not None:
+                nn.init.constant_(m.bias, 0)
+        elif isinstance(m, nn.LayerNorm):
+            nn.init.constant_(m.bias, 0)
+            nn.init.constant_(m.weight, 1.0)
+        elif isinstance(m, nn.Conv2d):
+            fan_out = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+            fan_out //= m.groups
+            m.weight.data.normal_(0, math.sqrt(2.0 / fan_out))
+            if m.bias is not None:
+                m.bias.data.zero_()
+
+    def forward(self, x1, x2, H=None, W=None):
+        assert x1.shape == x2.shape
+        N, C = x1.shape
+        B = 1
+        q = self.q(x1).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+
+        if self.sr_ratio > 1:
+            x_ = x2.permute(0, 2, 1).reshape(B, C, H, W)
+            x_ = self.sr(x_).reshape(B, C, -1).permute(0, 2, 1)
+            x_ = self.norm(x_)
+            kv = self.kv(x_).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        else:
+            kv = self.kv(x2).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        k, v = kv[0], kv[1]
+
+        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = attn.softmax(dim=-1)
+        attn = self.attn_drop(attn)
+
+        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = self.proj(x)
+        x = self.proj_drop(x)
+        x = x.squeeze(0)
+
+        return x
 
 
 
