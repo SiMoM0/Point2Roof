@@ -57,7 +57,7 @@ def assign_targets(points, gvs, radius):
     label = torch.where(idx >= 0, torch.ones(idx.shape).to(idx.device), torch.zeros(idx.shape).to(idx.device))
     return dis, label
 
-def test_model(model, data_loader, logger, split='train'):
+def test_model(model, data_loader, logger, split='test', dataset='tallinn'):
     dataloader_iter = iter(data_loader)
     with tqdm.trange(0, len(data_loader), desc='test', dynamic_ncols=True) as tbar:
         model.use_edge = True
@@ -77,7 +77,7 @@ def test_model(model, data_loader, logger, split='train'):
             # print(batch['refined_keypoint'])
             # print(batch['pair_points'].shape)
             # print(batch['pair_points'])
-            eval_process(batch, statistics, split)
+            eval_process(batch, statistics, split, dataset)
         bias = statistics['pts_bias'] / statistics['tp_pts']
         logger.info('pts_recall: %f' % (statistics['tp_pts'] / statistics['num_label_pts']))
         logger.info('pts_precision: %f' % (statistics['tp_pts'] / statistics['num_pred_pts']))
@@ -85,7 +85,7 @@ def test_model(model, data_loader, logger, split='train'):
         logger.info('edge_recall: %f' % (statistics['tp_edges'] / statistics['num_label_edges']))
         logger.info('edge_precision: %f' % (statistics['tp_edges'] / statistics['num_pred_edges']))
 
-def eval_process(batch, statistics, split='train'):
+def eval_process(batch, statistics, split='test', dataset='tallinn'):
     batch_size = batch['batch_size']
     pts_pred, pts_refined = batch['keypoint'], batch['refined_keypoint']
     edge_pred = batch['edge_score']
@@ -93,6 +93,8 @@ def eval_process(batch, statistics, split='train'):
         pts_label, edge_label = batch['vectors'], batch['edges'] 
     mm_pts = batch['minMaxPt']
     id = batch['frame_id']
+    centroid = batch['centroid']
+    max_distance = batch['max_distance']
 
     # print(pts_pred.shape, pts_refined.shape, pts_label.shape) # (pred_p, 4), (pred_p, 3), (B, num_p, 3)
     # print(edge_pred.shape, edge_label.shape) # (pred_e, ), (B, num_e, 2)
@@ -127,8 +129,8 @@ def eval_process(batch, statistics, split='train'):
             statistics['num_pred_pts'] += p_pts.shape[0]
             statistics['pts_bias'] += np.sum(dis, 0)
 
-        # TODO: de-normalize points
-        # use centroid and max distance from dataloader
+        # De-normalize points back to original coordinates
+        pred_points = (p_pts * max_distance[i]) + centroid[i]
 
         # print(f'Predicted vertices for frame [{id[i].item()}]:')
         # for idx, pt in enumerate(p_pts_real):
@@ -169,13 +171,18 @@ def eval_process(batch, statistics, split='train'):
         # for idx, edge in enumerate(l_edge):
         #     print(f'Edge {idx}: {edge[0]} - {edge[1]}')
 
-        # save wireframe file
-        output_dir = os.path.join('./predictions_tokyo/', 'wireframe')
+        # TODO: save wireframe file
+        pred_path = './predictions_' + dataset
+        output_dir = os.path.join(pred_path, 'wireframe')
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
-        wireframe_file = os.path.join(output_dir, f'{id[i].item()}.obj') # Building3D dataset
-        # wireframe_file = os.path.join(output_dir, f'tokyo_{id[i].item()}.obj') # TODO: Tokyo dataset
-        save_wireframe(p_pts, pred_edges, wireframe_file)
+        if dataset == 'tallinn':
+            wireframe_file = os.path.join(output_dir, f'{id[i].item()}.obj') # Building3D dataset
+        elif dataset == 'tokyo':
+            wireframe_file = os.path.join(output_dir, f'tokyo_{id[i].item()}.obj') # TODO: Tokyo dataset
+        else:
+            raise ValueError(f"Unknown dataset: {dataset}")
+        save_wireframe(pred_points, pred_edges, wireframe_file)
 
         # TODO: save points and edges in a .obj file
         # output_dir = os.path.join('./outputs/', 'wireframe')

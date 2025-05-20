@@ -14,7 +14,7 @@ python train.py --data_path ../B3D_challenge/Building3D_entry_level/Entry-level/
 TEST:
 python test.py --data_path ~/Downloads/tokyo --batch_size 128 --gpu 0 --test_tag baseline --split test
 
-For tokyo dataset, change line in `test_util.py` file
+For Tallinn and tokyo dataset, predictions will be salved in `./predictions_{dataset_name}` based on the dataset_path name. In case, change manualy the path in `test_util.py`.
 
 ## Synthetic and real dataset
 

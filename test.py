@@ -90,7 +90,10 @@ def main():
     logger.info('**********************Start testing**********************')
     logger.info(net)
 
-    test_model(net, test_loader, logger, SPLIT)
+    dataset = 'tallinn' if 'Tallinn' in args.data_path else 'tokyo'
+    print(f"Dataset: {dataset}")
+
+    test_model(net, test_loader, logger, SPLIT, dataset)
 
 
 if __name__ == '__main__':
