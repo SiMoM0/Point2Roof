@@ -13,3 +13,9 @@ submission_test*
 pc_util/build/*
 pc_util/dist/*
 pc_util/*.egg-info/*
+
+Tallinn
+output/
+output_/
+output_tokyo/
+output*

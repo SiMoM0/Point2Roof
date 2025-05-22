@@ -6,7 +6,6 @@ from .pointnet_stack_utils import *
 from .model_utils import *
 from scipy.optimize import linear_sum_assignment
 from utils import loss_utils
-import pc_util
 
 
 class ClusterRefineNet(nn.Module):
@@ -57,7 +56,7 @@ class ClusterRefineNet(nn.Module):
 
 # tips: change from batch to stack
     def forward(self, batch_dict):
-        offset_pts = batch_dict['points'].clone()
+        offset_pts = batch_dict['points'].clone()[:, :, :3]
         offset = batch_dict['point_pred_offset']
         pts_score = batch_dict['point_pred_score']
         score_thresh = self.model_cfg.ScoreThresh
@@ -92,6 +91,7 @@ class ClusterRefineNet(nn.Module):
             exit()
         batch_idx = torch.zeros(new_pts.shape[0], device=new_pts.device)
         idx = 0
+
         for i, cnt in enumerate(new_xyz_batch_cnt):
             if cnt == 0:
                 continue
@@ -119,9 +119,47 @@ class ClusterRefineNet(nn.Module):
             })
         batch_dict['keypoint'] = torch.cat([batch_idx.view(-1, 1), new_pts], -1)
         batch_dict['keypoint_features'] = refine_fea
+        
+        """
+        graphs = []
+        idx = 0
+        for i, cnt in enumerate(new_xyz_batch_cnt):
+            if cnt == 0:
+                continue
+            batch_idx[idx:idx + cnt] = i
+
+            graph_fea = refine_fea[idx:idx + cnt]
+            edge_index = self.build_fully_connected_edge_index(cnt)
+            # edge_index = to_undirected(edge_index)
+
+            graph = Data(x=graph_fea, edge_index=edge_index)
+            graphs.append(graph)
+            
+            idx += cnt
+        # batch_dict['keypoint_features'] = graphs
+        batch_dict['keypoint_features_gcn'] = graphs
+        """
+
         # batch_dict['keypoint_pred_score'] = torch.sigmoid(pred_cls).squeeze(-1)
         batch_dict['refined_keypoint'] = pred_offset * self.model_cfg.MatchRadius + new_pts
         return batch_dict
+    
+    # def build_fully_connected_edge_index(self, N):
+    #     row, col = torch.meshgrid(torch.arange(N), torch.arange(N), indexing='ij')
+    #     edge_index = torch.stack([row.flatten(), col.flatten()], dim=0)
+    #     # Remove self-loops
+    #     mask = edge_index[0] != edge_index[1]
+    #     return edge_index[:, mask]
+    
+    def build_fully_connected_edge_index(self, N):
+        row, col = torch.meshgrid(torch.arange(N), torch.arange(N), indexing='ij')
+        row = row.flatten()
+        col = col.flatten()
+        
+        # Keep only edges where i < j (upper triangle, no self-loops)
+        mask = row < col
+        edge_index = torch.stack([row[mask], col[mask]], dim=0)  # shape [2, E]
+        return edge_index
 
     def loss(self, loss_dict, disp_dict):
         # pred_cls, pred_offset = self.train_dict['keypoint_cls_pred'], self.train_dict['keypoint_offset_pred']

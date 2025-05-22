@@ -9,6 +9,8 @@ from utils import loss_utils
 import pc_util
 import itertools
 
+from torch_geometric.nn import GATConv
+
 
 class EdgeAttentionNet(nn.Module):
     def __init__(self, model_cfg, input_channel):
@@ -16,8 +18,8 @@ class EdgeAttentionNet(nn.Module):
         self.model_cfg = model_cfg
         self.freeze = False
 
-        self.att_layer = PairedPointAttention(input_channel)
-        num_feature = self.att_layer.num_output_feature
+        # self.att_layer = PairedPointAttention(input_channel)
+        num_feature = input_channel #self.att_layer.num_output_feature
         self.shared_fc = LinearBN(num_feature, num_feature)
         self.drop = nn.Dropout(0.5)
         self.cls_fc = nn.Linear(num_feature, 1)
@@ -30,6 +32,9 @@ class EdgeAttentionNet(nn.Module):
             self.loss_weight = self.model_cfg.LossWeight
 
         self.init_weights()
+
+        hidden_dim = 32
+        self.gcn = EdgeGAT(input_channel, hidden_dim, 1)
 
     def init_weights(self):
         for m in self.modules():
@@ -62,6 +67,7 @@ class EdgeAttentionNet(nn.Module):
                 bin_label_list.append(label)
             self.train_dict['label'] = torch.cat(bin_label_list)
 
+
         idx = 0
         pair_idx_list = []
         pair_idx_list1, pair_idx_list2 = [], []
@@ -81,10 +87,16 @@ class EdgeAttentionNet(nn.Module):
         pair_idx2 = torch.cat(pair_idx_list2).long()
         pair_fea1 = point_fea[pair_idx1]
         pair_fea2 = point_fea[pair_idx2]
-        edge_fea = self.att_layer(pair_fea1, pair_fea2)
+
+        edge_index = torch.stack([pair_idx1, pair_idx2], dim=0)
+
+        edge_fea = self.gcn(pair_fea1, pair_fea2, edge_index)
         edge_pred = self.cls_fc(self.drop(self.shared_fc(edge_fea)))
+
         batch_dict['pair_points'] = torch.cat(pair_idx_list, 0)
         batch_dict['edge_score'] = torch.sigmoid(edge_pred).view(-1)
+
+
         if self.training:
             self.train_dict['edge_pred'] = edge_pred
         return batch_dict
@@ -122,6 +134,53 @@ class EdgeAttentionNet(nn.Module):
         return cls_loss
 
 
+
+class EdgeGAT(torch.nn.Module):
+    def __init__(self, input_channel, hidden_channels, out_channels, heads=1):
+        super().__init__()
+        
+        self.gat1 = GATConv(input_channel*2, input_channel, heads=heads, concat=False)
+        self.gat2 = GATConv(input_channel, input_channel, heads=heads, concat=False)
+
+        self.act = nn.LeakyReLU()
+        self.bn1 = nn.BatchNorm1d(input_channel)
+        self.bn2 = nn.BatchNorm1d(input_channel)
+        
+        self.edge_att1 = nn.Sequential(
+            nn.Linear(input_channel, input_channel),
+            nn.BatchNorm1d(input_channel),
+            nn.GELU(),
+            nn.Linear(input_channel, input_channel),
+            nn.Sigmoid(),
+        )
+        self.edge_att2 = nn.Sequential(
+            nn.Linear(input_channel, input_channel),
+            nn.BatchNorm1d(input_channel),
+            nn.GELU(),
+            nn.Linear(input_channel, input_channel),
+            nn.Sigmoid(),
+        )
+        self.fea_fusion_layer = nn.MaxPool1d(3)
+
+        self.num_output_feature = input_channel
+
+    def forward(self, point_fea1, point_fea2, edge_index):
+        fusion_fea = point_fea1 + point_fea2
+        att1 = self.edge_att1(fusion_fea)
+        att2 = self.edge_att2(fusion_fea)
+        att_fea1 = point_fea1 * att1
+        att_fea2 = point_fea2 * att2
+
+        edge_feat = torch.cat([att_fea1, att_fea2], dim=1)
+        x = self.act(self.bn1(self.gat1(edge_feat, edge_index)))
+        x = self.act(self.bn2(self.gat2(x, edge_index)))
+
+        fea = torch.cat([att_fea1.unsqueeze(1), att_fea2.unsqueeze(1), x.unsqueeze(1)], 1)
+        fea = self.fea_fusion_layer(fea.permute(0, 2, 1)).squeeze(-1)
+
+        return fea
+
+"""
 class PairedPointAttention(nn.Module):
     def __init__(self, input_channel):
         super().__init__()
@@ -154,12 +213,4 @@ class PairedPointAttention(nn.Module):
         return fea
 
 
-
-
-
-
-
-
-
-
-
+"""

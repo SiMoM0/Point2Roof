@@ -14,11 +14,13 @@ import torch
 from torch.utils.data import Dataset
 from collections import defaultdict
 
-from scipy.spatial import cKDTree as KDTree
-from scipy.spatial.distance import cdist
+import cv2
 
-NUM_NEIGHBORS = 10
-NUM_CANDIDATES = 4
+# from scipy.spatial import cKDTree as KDTree
+# from scipy.spatial.distance import cdist
+
+# NUM_NEIGHBORS = 10
+# NUM_CANDIDATES = 4
 
 def load_wireframe(wireframe_file):
     vertices = []
@@ -79,6 +81,45 @@ def rotz(t):
     s = np.sin(t)
     return np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
 
+def fast_pointcloud_to_bev_image(points, image_size=256, channels_num=8):
+    """
+    Fast conversion of point cloud to BEV image (avg X, Y, Z per pixel).
+    Args:
+        points: (N, 3) array in [-1, 1]
+        image_size: output resolution
+
+    Returns:
+        bev_image: (H, W, 3) array with avg X, Y, Z per pixel
+    """
+    # Normalize XY to pixel indices
+    xy = (points[:, :2] + 1.0) * 0.5  # → [0, 1]
+    xy = (xy * (image_size - 1)).astype(np.int32)
+    xy = np.clip(xy, 0, image_size - 1)
+
+    x_pix = xy[:, 0]
+    y_pix = xy[:, 1]
+
+    # Flatten 2D indices to 1D
+    linear_idx = xy[:, 1] * image_size + xy[:, 0]  # row-major: y * W + x
+
+    # Prepare channels: X, Y, Z, R, G, B, I, INFRARED
+    channels = [points[:, i] for i in range(channels_num)]
+    bev_image = np.zeros((image_size * image_size, channels_num), dtype=np.float32)
+
+    # Accumulate sum per pixel using bincount
+    counts = np.bincount(linear_idx, minlength=image_size * image_size)
+    for i in range(channels_num):
+        sums = np.bincount(linear_idx, weights=channels[i], minlength=image_size * image_size)
+        bev_image[:, i] = sums
+
+    # Avoid division by zero
+    counts = np.maximum(counts, 1)
+    bev_image /= counts[:, None]
+
+    # Reshape back to (H, W, channels_num)
+    bev_image = bev_image.reshape((image_size, image_size, channels_num))
+
+    return bev_image, (x_pix, y_pix)
 
 class Building3DReconstructionDataset(Dataset):
     def __init__(self, dataset_config, split_set, logger=None):
@@ -136,12 +177,16 @@ class Building3DReconstructionDataset(Dataset):
                 wf_vertices -= centroid
                 wf_vertices /= max_distance
 
+        # imshow image
+        # cv2.imshow('BEV Image', bev_image[:, :, :3])
+        # cv2.waitKey(0)
+
         if self.num_points:
             point_cloud = random_sampling(point_cloud, self.num_points)
 
         # neighbor search
-        kdtree = KDTree(point_cloud[:, 0:3])
-        _, neighbors_emb = kdtree.query(point_cloud[:, 0:3], k=NUM_NEIGHBORS)
+        # kdtree = KDTree(point_cloud[:, 0:3])
+        # _, neighbors_emb = kdtree.query(point_cloud[:, 0:3], k=NUM_NEIGHBORS)
 
         # class labels generation
         # _, cand_vertices = kdtree.query(wf_vertices[:, 0:3], k=NUM_CANDIDATES)
@@ -175,6 +220,11 @@ class Building3DReconstructionDataset(Dataset):
             rot_mat = rotz(rot_angle)
             point_cloud[:, 0:3] = np.dot(point_cloud[:, 0:3], np.transpose(rot_mat))
             wf_vertices[:, 0:3] = np.dot(wf_vertices[:, 0:3], np.transpose(rot_mat))
+        
+
+        # ## TO BEV
+        channels_num = 3 #8 if self.use_color else 3
+        bev_image, inverse_mapping = fast_pointcloud_to_bev_image(point_cloud[:, :channels_num], image_size=128, channels_num=channels_num)
 
         # minMaxPt for point2roof
         min_pt, max_pt = np.min(point_cloud, axis=0), np.max(point_cloud, axis=0)
@@ -198,15 +248,19 @@ class Building3DReconstructionDataset(Dataset):
         # ------------------------------- Return Dict ------------------------------
         ret_dict = {}
         ret_dict['points'] = point_cloud.astype(np.float32)
+        ret_dict['bev_image'] = bev_image.astype(np.float32)
+        ret_dict['inverse_mapping'] = inverse_mapping
+
         if self.split_set == "train":
             ret_dict['vectors'] = wf_vertices.astype(np.float32)
             ret_dict['edges'] = wf_edges.astype(np.int64)
         # ret_dict['wf_centers'] = wf_centers.astype(np.float32)
         # ret_dict['wf_edge_number'] = wf_edge_number
         # ret_dict['wf_edges_vertices'] = wf_edges_vertices.reshape((-1, 6)).astype(np.float32)
-        ret_dict['neighbors_emb'] = neighbors_emb.astype(np.int64)
+        # ret_dict['neighbors_emb'] = neighbors_emb.astype(np.int64)
         # ret_dict['class_label'] = class_labels.astype(np.int64)
         # ret_dict['offset'] = offsets.astype(np.float32)
+        ret_dict["scan_idx"] = int(os.path.basename(self.pc_files[index])[:-4])
         ret_dict['minMaxPt'] = pt.astype(np.float32)
         if self.normalize:
             ret_dict['centroid'] = centroid

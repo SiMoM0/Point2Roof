@@ -16,7 +16,7 @@ from model import model_utils
 
 # Building3D
 from Building3D.datasets import build_dataset
-CONFIG_PATH = './Building3D/datasets/dataset_config.yaml'
+CONFIG_PATH = '/home/fusy/Documents/DL/Point2Roof/Building3D/datasets/dataset_config.yaml'
 
 
 def get_scheduler(optim, last_epoch):
@@ -29,7 +29,7 @@ def parse_config():
     parser.add_argument('--data_path', type=str, default='../GithubDeepRoof', help='dataset path')
     parser.add_argument('--cfg_file', type=str, default='./model_cfg.yaml', help='model config for training')
     parser.add_argument('--batch_size', type=int, default=64, help='batch size for training')
-    parser.add_argument('--gpu', type=str, default='1', help='gpu for training')
+    parser.add_argument('--gpu', type=str, default='0', help='gpu for training')
     parser.add_argument('--extra_tag', type=str, default='pts6', help='extra tag for this experiment')
     parser.add_argument('--epochs', type=int, default=90, help='number of epochs to train for')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
@@ -80,19 +80,29 @@ def main():
         collate_fn=building3D_dataset['train'].collate_batch
     )
 
-    net = RoofNet(cfg.MODEL)
+    net = RoofNet(cfg.MODEL, 8 if dataset_config.Building3D.use_color else 3)
     net.cuda()
-    optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-3)
+    # optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-3)
 
     start_epoch = it = 0
     last_epoch = -1
     ckpt_list = glob.glob(str(ckpt_dir / '*checkpoint_epoch_*.pth'))
     if args.restart and len(ckpt_list) > 0:
         ckpt_list.sort(key=os.path.getmtime)
+        print("RESUMING FROM", ckpt_list[-1])
         it, start_epoch = model_utils.load_params_with_optimizer(
-            net, ckpt_list[-1], optimizer=optimizer, logger=logger
+            net, ckpt_list[-1], optimizer=None, logger=logger
         )
         last_epoch = start_epoch + 1
+
+    # optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-3)
+        
+    optimizer = torch.optim.Adam([
+        {'params': net.keypoint_det_net.parameters(), 'lr': args.lr, 'initial_lr': args.lr},
+        {'params': net.cluster_refine_net.parameters(), 'lr': args.lr, 'initial_lr': args.lr},
+        {'params': net.edge_att_net.parameters(), 'lr': args.lr, 'initial_lr': args.lr},
+    ])
+
 
     scheduler = get_scheduler(optimizer, last_epoch=last_epoch)
 

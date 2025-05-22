@@ -34,7 +34,7 @@ def parse_config():
     parser.add_argument('--data_path', type=str, default='../GithubDeepRoof', help='dataset path')
     parser.add_argument('--cfg_file', type=str, default='./model_cfg.yaml', help='model config for training')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size for training')
-    parser.add_argument('--gpu', type=str, default='1', help='gpu for training')
+    parser.add_argument('--gpu', type=str, default='0', help='gpu for training')
     parser.add_argument('--test_tag', type=str, default='pts6', help='extra tag for this experiment')
     parser.add_argument('--split', type=str, default='train', help='train or test split')
 
@@ -76,9 +76,9 @@ def main():
         num_workers=4,
         collate_fn=building3D_dataset[SPLIT].collate_batch # TODO: change to test
     )
-    print('Dataset size: ', len(test_loader.dataset))
     
-    net = RoofNet(cfg.MODEL)
+    
+    net = RoofNet(cfg.MODEL, 8 if dataset_config.Building3D.use_color else 3)
     net.cuda()
     net.eval()
 

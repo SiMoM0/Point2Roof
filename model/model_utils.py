@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import pc_util
 from torch.autograd import Function, Variable
 
-
 class Conv2ds(nn.Sequential):
     def __init__(self, cns):
         super().__init__()
@@ -69,11 +68,19 @@ def load_params_with_optimizer(net, filename, to_cpu=False, optimizer=None, logg
     epoch = checkpoint.get('epoch', -1)
     it = checkpoint.get('it', 0.0)
 
-    net.load_state_dict(checkpoint['model_state'])
+    # import ipdb; ipdb.set_trace()
 
-    if optimizer is not None:
-        logger.info('==> Loading optimizer parameters from checkpoint')
-        optimizer.load_state_dict(checkpoint['optimizer_state'])
+    ckpt = checkpoint['model_state']
+    filtered_ckpt = {k: v for k, v in ckpt.items() if k.startswith("keypoint_det_net")}
+    model_dict = net.state_dict()
+    model_dict.update(filtered_ckpt)
+    net.load_state_dict(model_dict)
+
+    # net.load_state_dict(checkpoint['model_state'])
+
+    # if optimizer is not None:
+    #     logger.info('==> Loading optimizer parameters from checkpoint')
+    #     optimizer.load_state_dict(checkpoint['optimizer_state'])
 
     logger.info('==> Done')
 

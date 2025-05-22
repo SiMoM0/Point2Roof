@@ -2,15 +2,22 @@ from .pointnet2 import PointNet2
 from .cluster_refine import ClusterRefineNet
 from .edge_pred_net import EdgeAttentionNet
 import torch.nn as nn
-from sklearn.cluster import DBSCAN
+# from sklearn.cluster import DBSCAN
+
+# from .minkoski_backbone import ModelTwo
+from .conv2d_backbone import Model2DConv
+
 
 
 class RoofNet(nn.Module):
-    def __init__(self, model_cfg, input_channel=3):
+    def __init__(self, model_cfg, input_channel=8):
         super().__init__()
         self.use_edge = False
         self.model_cfg = model_cfg
-        self.keypoint_det_net = PointNet2(model_cfg.PointNet2, input_channel)
+        # self.keypoint_det_net = ModelTwo(input_channel) #PointNet2(model_cfg.PointNet2, input_channel)
+
+        self.keypoint_det_net = Model2DConv(input_channel)
+
         self.cluster_refine_net = ClusterRefineNet(model_cfg.ClusterRefineNet, input_channel=self.keypoint_det_net.num_output_feature)
         self.edge_att_net = EdgeAttentionNet(model_cfg.EdgeAttentionNet, input_channel=self.cluster_refine_net.num_output_feature)
 

@@ -91,8 +91,10 @@ def eval_process(batch, statistics, split='train'):
     edge_pred = batch['edge_score']
     if split == 'train':
         pts_label, edge_label = batch['vectors'], batch['edges'] 
-    mm_pts = batch['minMaxPt']
+    mm_pts = batch['minMaxPt'][:, :, :3]
     id = batch['frame_id']
+
+    # import ipdb; ipdb.set_trace()
 
     # print(pts_pred.shape, pts_refined.shape, pts_label.shape) # (pred_p, 4), (pred_p, 3), (B, num_p, 3)
     # print(edge_pred.shape, edge_label.shape) # (pred_e, ), (B, num_e, 2)
