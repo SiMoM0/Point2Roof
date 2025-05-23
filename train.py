@@ -34,6 +34,7 @@ def parse_config():
     parser.add_argument('--epochs', type=int, default=90, help='number of epochs to train for')
     parser.add_argument('--lr', type=float, default=1e-3, help='learning rate')
     parser.add_argument('--restart', action='store_true', default=False, help='restart training from the last checkpoint')
+    parser.add_argument('--only_edge', action='store_true', default=False, help='train only edge detector')
     args = parser.parse_args()
     cfg = common_utils.cfg_from_yaml_file(args.cfg_file)
 
@@ -82,10 +83,31 @@ def main():
 
     net = RoofNet(cfg.MODEL)
     net.cuda()
-    optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-3)
+
+    if args.only_edge:
+        net.use_edge = True
+        logger.info('Training only edge detector')
+
+        # freeze the keypoint detector and cluster refine net
+        for param in net.keypoint_det_net.parameters():
+            param.requires_grad = False
+        for param in net.cluster_refine_net.parameters():
+            param.requires_grad = False
+
+        optimizer = optim.Adam(filter(lambda p: p.requires_grad, net.parameters()), lr=args.lr, weight_decay=1e-3)
+    else:
+        optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-3)
 
     nb_param = sum([p.numel() for p in net.parameters()]) / 1e6
     print(f"Model: {nb_param} x 10^6 trainable parameters ")
+    trainable_params = filter(lambda p: p.requires_grad, net.parameters())
+    print(f"Total trainable parameters: {sum([p.numel() for p in trainable_params]) / 1e6} x 10^6")
+
+    # TODO: use a pretrained model
+    # last_ckpt = './output/b05/ckpt/checkpoint_epoch_90.pth'
+    # if last_ckpt is not None:
+    #     logger.info('Loading checkpoint from %s' % last_ckpt)
+    #     model_utils.load_params(net, last_ckpt, logger=logger)
 
     start_epoch = it = 0
     last_epoch = -1
